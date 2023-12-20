@@ -50,6 +50,11 @@ func SignAnswers(w http.ResponseWriter, r *http.Request) {
 }
 
 func VerifySignature(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed here", http.StatusMethodNotAllowed)
+		return
+	}
+
 	db, _ := conn.InitDB()
 
 	var req struct {
@@ -58,6 +63,16 @@ func VerifySignature(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.UserID == "" {
+		http.Error(w, "userId required", http.StatusBadRequest)
+		return
+	}
+
+	if req.Signature == "" {
+		http.Error(w, "signature required", http.StatusBadRequest)
 		return
 	}
 
