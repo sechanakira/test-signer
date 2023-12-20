@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	conn "test-signer/internal/db"
 	"time"
 )
@@ -45,6 +46,11 @@ func SignAnswers(w http.ResponseWriter, r *http.Request) {
 			log.Println("failed to close response body")
 		}
 	}(r.Body)
+
+	if err := validateJwtPresent(r.Header.Get("Authorization")); err != nil {
+		writeError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
 
 	if err := validateHttpMethod(r.Method, "POST"); err != nil {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed here")
@@ -202,4 +208,17 @@ func saveSession(userId string, signature string, answers []string) error {
 	_, err = db.Exec("INSERT INTO user_session (user_id, signature, answers) VALUES ($1, $2, $3)",
 		userId, signature, jsonAnswers)
 	return err
+}
+
+func validateJwtPresent(authHeader string) error {
+	if authHeader == "" {
+		return fmt.Errorf("authorization header is required")
+	}
+
+	headerParts := strings.Split(authHeader, " ")
+	if len(headerParts) != 2 || headerParts[0] != "Bearer" {
+		return fmt.Errorf("authorization header format must be Bearer {token}")
+	}
+
+	return nil
 }
