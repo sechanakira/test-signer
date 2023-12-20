@@ -22,6 +22,20 @@ func init() {
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
+
+	createTableSQL := `
+    CREATE TABLE IF NOT EXISTS user_session (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        signature TEXT NOT NULL,
+        answers JSONB NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );`
+
+	_, err = db.Exec(createTableSQL)
+	if err != nil {
+		log.Fatalf("Failed to create user_session table: %v", err)
+	}
 }
 
 func SignAnswers(w http.ResponseWriter, r *http.Request) {
