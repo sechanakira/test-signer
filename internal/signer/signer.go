@@ -11,33 +11,9 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	conn "test-signer/internal/db"
+	"test-signer/internal/db"
 	"time"
 )
-
-var db *sql.DB
-
-func init() {
-	var err error
-	db, err = conn.InitDB()
-	if err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
-	}
-
-	createTableSQL := `
-    CREATE TABLE IF NOT EXISTS user_session (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL,
-        signature TEXT NOT NULL,
-        answers JSONB NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-    );`
-
-	_, err = db.Exec(createTableSQL)
-	if err != nil {
-		log.Fatalf("Failed to create user_session table: %v", err)
-	}
-}
 
 func SignAnswers(w http.ResponseWriter, r *http.Request) {
 	defer func(Body io.ReadCloser) {
@@ -69,7 +45,7 @@ func SignAnswers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	signature := generateSignature(req)
-	if err := saveSession(req.UserID, signature, req.Answers); err != nil {
+	if err := db.SaveSession(req.UserID, signature, req.Answers); err != nil {
 		writeError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
@@ -141,7 +117,7 @@ func VerifySignature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	answers, createdAt, err := fetchSessionData(req.UserID, req.Signature)
+	answers, createdAt, err := db.FetchSessionData(req.UserID, req.Signature)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeError(w, http.StatusNotFound, "No matching session found")
@@ -177,19 +153,6 @@ func validateVerifyRequest(req struct {
 	return nil
 }
 
-func fetchSessionData(userID, signature string) (json.RawMessage, time.Time, error) {
-	var answers json.RawMessage
-	var createdAt time.Time
-
-	err := db.QueryRow("SELECT answers, created_at FROM user_session WHERE user_id = $1 AND signature = $2",
-		userID, signature).Scan(&answers, &createdAt)
-	if err != nil {
-		return nil, time.Time{}, err
-	}
-
-	return answers, createdAt, nil
-}
-
 func generateSignature(req SignRequest) string {
 	hash := sha256.New()
 	hash.Write([]byte(req.UserID))
@@ -197,17 +160,6 @@ func generateSignature(req SignRequest) string {
 		hash.Write([]byte(ans))
 	}
 	return hex.EncodeToString(hash.Sum(nil))
-}
-
-func saveSession(userId string, signature string, answers []string) error {
-	jsonAnswers, err := json.Marshal(answers)
-	if err != nil {
-		return err
-	}
-
-	_, err = db.Exec("INSERT INTO user_session (user_id, signature, answers) VALUES ($1, $2, $3)",
-		userId, signature, jsonAnswers)
-	return err
 }
 
 func validateJwtPresent(authHeader string) error {
