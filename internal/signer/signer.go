@@ -11,19 +11,40 @@ import (
 )
 
 func SignAnswers(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed here", http.StatusMethodNotAllowed)
+		return
+	}
+
 	var req SignRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
+	if req.UserID == "" {
+		http.Error(w, "user id cannot be null", http.StatusBadRequest)
+		return
+	}
+
+	if req.Answers == nil {
+		http.Error(w, "answers are required", http.StatusBadRequest)
+		return
+	}
+
 	signature := generateSignature(req)
 
-	saveSession(req.UserID, signature, req.Answers)
+	err := saveSession(req.UserID, signature, req.Answers)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	resp := SignResponse{Signature: signature}
 
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
 
 	json.NewEncoder(w).Encode(resp)
 }
@@ -77,7 +98,11 @@ func generateSignature(req SignRequest) string {
 }
 
 func saveSession(userId string, signature string, answers []string) error {
-	db, _ := conn.InitDB()
+	db, dbErr := conn.InitDB()
+	if dbErr != nil {
+		return dbErr
+	}
+
 	jsonAnswers, err := json.Marshal(answers)
 	if err != nil {
 		return err
