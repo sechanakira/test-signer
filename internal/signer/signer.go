@@ -14,6 +14,16 @@ import (
 	"time"
 )
 
+var db *sql.DB
+
+func init() {
+	var err error
+	db, err = conn.InitDB()
+	if err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+}
+
 func SignAnswers(w http.ResponseWriter, r *http.Request) {
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
@@ -148,11 +158,6 @@ func validateVerifyRequest(req struct {
 }
 
 func fetchSessionData(userID, signature string) (json.RawMessage, time.Time, error) {
-	db, dbErr := conn.InitDB()
-	if dbErr != nil {
-		return nil, time.Time{}, dbErr
-	}
-
 	var answers json.RawMessage
 	var createdAt time.Time
 
@@ -175,11 +180,6 @@ func generateSignature(req SignRequest) string {
 }
 
 func saveSession(userId string, signature string, answers []string) error {
-	db, dbErr := conn.InitDB()
-	if dbErr != nil {
-		return dbErr
-	}
-
 	jsonAnswers, err := json.Marshal(answers)
 	if err != nil {
 		return err
