@@ -23,6 +23,8 @@ func SignAnswers(w http.ResponseWriter, r *http.Request) {
 
 	resp := SignResponse{Signature: signature}
 
+	w.Header().Set("Content-Type", "application/json")
+
 	json.NewEncoder(w).Encode(resp)
 }
 
@@ -59,6 +61,8 @@ func VerifySignature(w http.ResponseWriter, r *http.Request) {
 		Answers:   answers,
 		Timestamp: createdAt,
 	}
+
+	w.Header().Set("Content-Type", "application/json")
 
 	json.NewEncoder(w).Encode(response)
 }
